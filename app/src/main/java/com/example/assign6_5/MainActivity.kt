@@ -43,6 +43,7 @@ import com.google.maps.android.compose.Marker
 import com.google.maps.android.compose.MarkerState
 import com.google.android.gms.location.*
 import android.location.Geocoder
+import androidx.compose.runtime.mutableStateListOf
 
 class MainActivity : ComponentActivity() {
     private lateinit var fusedLocationClient: FusedLocationProviderClient
@@ -158,19 +159,16 @@ fun RequestPermissions(
 fun MainScreen(location: Location) {
     val context = LocalContext.current
 
-    // Holds the human-readable address
+    // Holds the human-readable address for current location
     var addressText by remember { mutableStateOf("Loading address...") }
 
-    // Reverse-geocode the address on first composition or when location changes
+    // Reverse geocode user's current location
     LaunchedEffect(location) {
         val geocoder = Geocoder(context)
         try {
             val results = geocoder.getFromLocation(location.latitude, location.longitude, 1)
             if (!results.isNullOrEmpty()) {
-                val addr = results[0]
-                addressText = buildString {
-                    append(addr.getAddressLine(0)) // full address
-                }
+                addressText = results[0].getAddressLine(0)
             } else {
                 addressText = "Address unavailable"
             }
@@ -179,30 +177,38 @@ fun MainScreen(location: Location) {
         }
     }
 
+    val customMarkers = remember { mutableStateListOf<LatLng>() }
+
     val target = LatLng(location.latitude, location.longitude)
     val cameraPositionState = rememberCameraPositionState {
-        position = CameraPosition.fromLatLngZoom(target, 10f)
-    }
-
-    var properties by remember {
-        mutableStateOf(MapProperties(mapType = MapType.SATELLITE))
-    }
-
-    var uiSettings by remember {
-        mutableStateOf(MapUiSettings(zoomControlsEnabled = false))
+        position = CameraPosition.fromLatLngZoom(target, 14f)
     }
 
     GoogleMap(
         modifier = Modifier.fillMaxSize(),
         cameraPositionState = cameraPositionState,
-        properties = properties,
-        uiSettings = uiSettings
+        properties = MapProperties(mapType = MapType.SATELLITE),
+        uiSettings = MapUiSettings(zoomControlsEnabled = false),
+
+        onMapClick = { latLng ->
+            customMarkers.add(latLng)
+        }
     ) {
+        // Default marker for user's current location
         Marker(
             state = MarkerState(position = target),
             title = "Current Location",
-            snippet = addressText // ← THIS SHOWS THE ADDRESS WHEN CLICKED
+            snippet = addressText
         )
+
+        // Draw all custom markers placed by user
+        customMarkers.forEach { latLng ->
+            Marker(
+                state = MarkerState(latLng),
+                title = "Custom Marker",
+                snippet = "${latLng.latitude}, ${latLng.longitude}"
+            )
+        }
     }
 }
 
