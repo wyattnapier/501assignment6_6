@@ -51,6 +51,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.google.maps.android.compose.Polyline
+import com.google.maps.android.compose.Polygon
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
 
 class MainActivity : ComponentActivity() {
     private lateinit var fusedLocationClient: FusedLocationProviderClient
@@ -73,7 +76,6 @@ class MainActivity : ComponentActivity() {
         locationCallback = object : LocationCallback() {
             override fun onLocationResult(locationResult: LocationResult) {
                 locationResult.lastLocation?.let { location ->
-                    // Update Jetpack Compose state, not setContent()
                     lastKnownLocation.value = location
                 }
             }
@@ -85,21 +87,18 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    // Start permissions + location updates
                     RequestPermissions(
                         fusedLocationClient,
                         locationRequest,
                         locationCallback
                     )
 
-                    // Only show the map when we have a location
                     lastKnownLocation.value?.let { loc ->
                         MainScreen(loc)
                     }
                 }
             }
         }
-
     }
 
     @RequiresPermission(anyOf = [Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION])
@@ -166,11 +165,20 @@ fun RequestPermissions(
 fun MainScreen(location: Location) {
     val context = LocalContext.current
 
-    // Holds the human-readable address for current location
     var addressText by remember { mutableStateOf("Loading address...") }
 
+    // Polyline customization states
     var polylineColor by remember { mutableStateOf(Color.Red) }
     var polylineWidth by remember { mutableStateOf(8f) }
+
+    // Polygon customization states
+    var polygonFillColor by remember { mutableStateOf(Color.Green.copy(alpha = 0.3f)) }
+    var polygonStrokeColor by remember { mutableStateOf(Color.Green) }
+    var polygonStrokeWidth by remember { mutableStateOf(4f) }
+
+    // Dialog states for click information
+    var showPolylineDialog by remember { mutableStateOf(false) }
+    var showPolygonDialog by remember { mutableStateOf(false) }
 
     val freedomTrail = listOf(
         LatLng(42.35505, -71.06563), // 1. Boston Common (Start)
@@ -210,7 +218,14 @@ fun MainScreen(location: Location) {
         "Bunker Hill Monument"
     )
 
-    // Reverse geocode user's current location
+    // Boston Public Garden polygon (park area of interest)
+    val bostonPublicGarden = listOf(
+        LatLng(42.35494, -71.07152),
+        LatLng(42.35694, -71.07152),
+        LatLng(42.35694, -71.06852),
+        LatLng(42.35494, -71.06852)
+    )
+
     LaunchedEffect(location) {
         val geocoder = Geocoder(context)
         try {
@@ -231,12 +246,14 @@ fun MainScreen(location: Location) {
     val cameraPositionState = rememberCameraPositionState {
         position = CameraPosition.fromLatLngZoom(target, 14f)
     }
+
     Column {
+        // Polyline Width Control
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.padding(8.dp)
         ) {
-            Text("Polyline Width: ${polylineWidth.toInt()} dp")
+            Text("Trail Width: ${polylineWidth.toInt()}dp")
             Slider(
                 value = polylineWidth,
                 onValueChange = { polylineWidth = it },
@@ -245,14 +262,49 @@ fun MainScreen(location: Location) {
             )
         }
 
+        // Polyline Color Control
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(horizontal = 8.dp)
+        ) {
+            Text("Trail Color:")
+            Spacer(modifier = Modifier.padding(horizontal = 4.dp))
+            DropdownMenuColorSelector(selectedColor = polylineColor) {
+                polylineColor = it
+            }
+        }
+
+        // Polygon Stroke Width Control
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.padding(8.dp)
         ) {
-            Text("Polyline Color:")
-            Spacer(modifier = Modifier.padding(horizontal = 2.dp))
-            DropdownMenuColorSelector(selectedColor = polylineColor) {
-                polylineColor = it
+            Text("Park Border: ${polygonStrokeWidth.toInt()}dp")
+            Slider(
+                value = polygonStrokeWidth,
+                onValueChange = { polygonStrokeWidth = it },
+                valueRange = 2f..15f,
+                modifier = Modifier.weight(1f).padding(start = 8.dp)
+            )
+        }
+
+        // Polygon Color Controls
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(horizontal = 8.dp)
+        ) {
+            Text("Park Fill:")
+            Spacer(modifier = Modifier.padding(horizontal = 4.dp))
+            DropdownMenuColorSelector(selectedColor = polygonFillColor.copy(alpha = 1f)) {
+                polygonFillColor = it.copy(alpha = 0.3f)
+            }
+
+            Spacer(modifier = Modifier.padding(horizontal = 8.dp))
+
+            Text("Border:")
+            Spacer(modifier = Modifier.padding(horizontal = 4.dp))
+            DropdownMenuColorSelector(selectedColor = polygonStrokeColor) {
+                polygonStrokeColor = it
             }
         }
 
@@ -261,37 +313,91 @@ fun MainScreen(location: Location) {
             cameraPositionState = cameraPositionState,
             properties = MapProperties(mapType = MapType.SATELLITE),
             uiSettings = MapUiSettings(zoomControlsEnabled = false),
-
             onMapClick = { latLng ->
                 customMarkers.add(latLng)
             }
         ) {
-            // Default marker for user's current location
+            // Current location marker
             Marker(
                 state = MarkerState(position = target),
                 title = "Current Location",
                 snippet = addressText
             )
 
-            // Draw all custom markers placed by user
-            freedomTrail.forEachIndexed { index, point ->
-                Marker(
-                    state = MarkerState(point),
-                    title = freedomTrailNames[index],
-                    snippet = "Freedom Trail Stop ${index + 1}"
-                )
-            }
-
+            // Freedom Trail polyline with click listener
             Polyline(
-                points = freedomTrail, // Pass the list of LatLng coordinates
-                color = polylineColor, // Set the polyline color
-                width = polylineWidth, // Set the polyline width
+                points = freedomTrail,
+                color = polylineColor,
+                width = polylineWidth,
+                clickable = true,
+                onClick = {
+                    showPolylineDialog = true
+                }
+            )
+
+            // Boston Public Garden polygon with click listener
+            Polygon(
+                points = bostonPublicGarden,
+                fillColor = polygonFillColor,
+                strokeColor = polygonStrokeColor,
+                strokeWidth = polygonStrokeWidth,
+                clickable = true,
+                onClick = {
+                    showPolygonDialog = true
+                }
             )
         }
     }
+
+    // Dialog for Freedom Trail information
+    if (showPolylineDialog) {
+        AlertDialog(
+            onDismissRequest = { showPolylineDialog = false },
+            title = { Text("Freedom Trail") },
+            text = {
+                Column {
+                    Text("The Freedom Trail is a 2.5-mile-long path through Boston that passes by 16 significant historic sites.")
+                    Spacer(modifier = Modifier.padding(vertical = 4.dp))
+                    Text("Total Stops: ${freedomTrailNames.size}")
+                    Spacer(modifier = Modifier.padding(vertical = 4.dp))
+                    Text("Trail Length: ~2.5 miles")
+                    Spacer(modifier = Modifier.padding(vertical = 4.dp))
+                    Text("Established: 1951")
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showPolylineDialog = false }) {
+                    Text("Close")
+                }
+            }
+        )
+    }
+
+    // Dialog for Boston Public Garden information
+    if (showPolygonDialog) {
+        AlertDialog(
+            onDismissRequest = { showPolygonDialog = false },
+            title = { Text("Boston Public Garden") },
+            text = {
+                Column {
+                    Text("The Boston Public Garden is a large public park in the heart of Boston, Massachusetts.")
+                    Spacer(modifier = Modifier.padding(vertical = 4.dp))
+                    Text("Area: 24 acres")
+                    Spacer(modifier = Modifier.padding(vertical = 4.dp))
+                    Text("Established: 1837")
+                    Spacer(modifier = Modifier.padding(vertical = 4.dp))
+                    Text("Notable Features: Swan Boats, lagoon, Victorian-era statues, and meticulously maintained flower beds.")
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showPolygonDialog = false }) {
+                    Text("Close")
+                }
+            }
+        )
+    }
 }
 
-// Simple dropdown menu to select a color
 @Composable
 fun DropdownMenuColorSelector(
     selectedColor: Color,
@@ -299,9 +405,9 @@ fun DropdownMenuColorSelector(
 ) {
     var expanded by remember { mutableStateOf(false) }
 
-    val colors = listOf(Color.Red, Color.Blue, Color.Green, Color.Magenta, Color.Cyan)
-    val colorNames = listOf("Red", "Blue", "Green", "Magenta", "Cyan")
-    val selectedColorName = colorNames[colors.indexOf(selectedColor)]
+    val colors = listOf(Color.Red, Color.Blue, Color.Green, Color.Magenta, Color.Cyan, Color.Yellow)
+    val colorNames = listOf("Red", "Blue", "Green", "Magenta", "Cyan", "Yellow")
+    val selectedColorName = colorNames[colors.indexOf(selectedColor.copy(alpha = 1f))]
 
     Box {
         Button(onClick = { expanded = true }) {
@@ -322,7 +428,6 @@ fun DropdownMenuColorSelector(
     }
 }
 
-// Helper function to compute distance between two LatLng points
 fun distanceBetween(a: LatLng, b: LatLng): Double {
     val results = FloatArray(1)
     android.location.Location.distanceBetween(
