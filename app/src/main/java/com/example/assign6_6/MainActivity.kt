@@ -36,8 +36,20 @@ import com.google.maps.android.compose.Marker
 import com.google.maps.android.compose.MarkerState
 import com.google.android.gms.location.*
 import android.location.Geocoder
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Button
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.Slider
+import androidx.compose.material3.Text
 import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.dp
 import com.google.maps.android.compose.Polyline
 
 class MainActivity : ComponentActivity() {
@@ -157,6 +169,9 @@ fun MainScreen(location: Location) {
     // Holds the human-readable address for current location
     var addressText by remember { mutableStateOf("Loading address...") }
 
+    var polylineColor by remember { mutableStateOf(Color.Red) }
+    var polylineWidth by remember { mutableStateOf(8f) }
+
     val freedomTrail = listOf(
         LatLng(42.35505, -71.06563), // 1. Boston Common (Start)
         LatLng(42.35817, -71.06370), // 2. Massachusetts State House
@@ -216,39 +231,106 @@ fun MainScreen(location: Location) {
     val cameraPositionState = rememberCameraPositionState {
         position = CameraPosition.fromLatLngZoom(target, 14f)
     }
-
-    GoogleMap(
-        modifier = Modifier.fillMaxSize(),
-        cameraPositionState = cameraPositionState,
-        properties = MapProperties(mapType = MapType.SATELLITE),
-        uiSettings = MapUiSettings(zoomControlsEnabled = false),
-
-        onMapClick = { latLng ->
-            customMarkers.add(latLng)
-        }
-    ) {
-        // Default marker for user's current location
-        Marker(
-            state = MarkerState(position = target),
-            title = "Current Location",
-            snippet = addressText
-        )
-
-        // Draw all custom markers placed by user
-        freedomTrail.forEachIndexed { index, point ->
-            Marker(
-                state = MarkerState(point),
-                title = freedomTrailNames[index],
-                snippet = "Freedom Trail Stop ${index + 1}"
+    Column {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(8.dp)
+        ) {
+            Text("Polyline Width: ${polylineWidth.toInt()} dp")
+            Slider(
+                value = polylineWidth,
+                onValueChange = { polylineWidth = it },
+                valueRange = 2f..20f,
+                modifier = Modifier.weight(1f).padding(start = 8.dp)
             )
         }
 
-        Polyline(
-            points = freedomTrail, // Pass the list of LatLng coordinates
-            color = Color.Blue, // Set the polyline color
-            width = 8f // Set the polyline width
-        )
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(8.dp)
+        ) {
+            Text("Polyline Color:")
+            Spacer(modifier = Modifier.padding(horizontal = 2.dp))
+            DropdownMenuColorSelector(selectedColor = polylineColor) {
+                polylineColor = it
+            }
+        }
+
+        GoogleMap(
+            modifier = Modifier.fillMaxSize(),
+            cameraPositionState = cameraPositionState,
+            properties = MapProperties(mapType = MapType.SATELLITE),
+            uiSettings = MapUiSettings(zoomControlsEnabled = false),
+
+            onMapClick = { latLng ->
+                customMarkers.add(latLng)
+            }
+        ) {
+            // Default marker for user's current location
+            Marker(
+                state = MarkerState(position = target),
+                title = "Current Location",
+                snippet = addressText
+            )
+
+            // Draw all custom markers placed by user
+            freedomTrail.forEachIndexed { index, point ->
+                Marker(
+                    state = MarkerState(point),
+                    title = freedomTrailNames[index],
+                    snippet = "Freedom Trail Stop ${index + 1}"
+                )
+            }
+
+            Polyline(
+                points = freedomTrail, // Pass the list of LatLng coordinates
+                color = polylineColor, // Set the polyline color
+                width = polylineWidth, // Set the polyline width
+            )
+        }
     }
+}
+
+// Simple dropdown menu to select a color
+@Composable
+fun DropdownMenuColorSelector(
+    selectedColor: Color,
+    onColorSelected: (Color) -> Unit
+) {
+    var expanded by remember { mutableStateOf(false) }
+
+    val colors = listOf(Color.Red, Color.Blue, Color.Green, Color.Magenta, Color.Cyan)
+    val colorNames = listOf("Red", "Blue", "Green", "Magenta", "Cyan")
+    val selectedColorName = colorNames[colors.indexOf(selectedColor)]
+
+    Box {
+        Button(onClick = { expanded = true }) {
+            Text(text = selectedColorName)
+        }
+
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            colors.forEachIndexed { index, color ->
+                DropdownMenuItem(
+                    text = { Text(colorNames[index]) },
+                    onClick = {
+                        onColorSelected(color)
+                        expanded = false
+                    }
+                )
+            }
+        }
+    }
+}
+
+// Helper function to compute distance between two LatLng points
+fun distanceBetween(a: LatLng, b: LatLng): Double {
+    val results = FloatArray(1)
+    android.location.Location.distanceBetween(
+        a.latitude, a.longitude,
+        b.latitude, b.longitude,
+        results
+    )
+    return results[0].toDouble()
 }
 
 @Preview(showBackground = true)
