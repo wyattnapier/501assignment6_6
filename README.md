@@ -1,14 +1,12 @@
-# 501 Assignment 6-5
+# 501 Assignment 6-6
 
 ### Description
 
-Build an app that:
-1. Requests location permission
-2. Displays Google Maps centered at the user's location (use the emulator if needed)
-3. Adds a marker at the user's location
-4. Displays address information
-5. Allows the user to place custom markers by tapping the map
+Build an Android app that:
+1. Displays Google Map with a polyline representing a hiking trail
+2. Implement a polygon to highlight a park or other area of interest
+3. Allow users to customize the color and width of the polyline and polygon
+4. Add click listeners to display information about the trail or area when the user taps on the overlay.
 
 ### Demo
 
-[YoutTube Link](https://youtu.be/BclVZcTgw0A)
