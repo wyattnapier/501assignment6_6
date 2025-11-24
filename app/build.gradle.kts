@@ -4,7 +4,7 @@ plugins {
 }
 
 android {
-    namespace = "com.example.assign6_5"
+    namespace = "com.example.assign6_6"
     compileSdk = 34
 
     defaultConfig {

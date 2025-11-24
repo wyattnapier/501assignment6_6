@@ -1,10 +1,7 @@
-package com.example.assign6_5
+package com.example.assign6_6
 
 import android.Manifest
 import android.content.pm.PackageManager
-import android.hardware.Sensor
-import android.hardware.SensorEventListener
-import android.hardware.SensorManager
 import android.location.Location
 import android.os.Bundle
 import android.util.Log
@@ -13,12 +10,9 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.RequiresPermission
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
-import androidx.compose.ui.Alignment
-import androidx.compose.material3.Switch
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -34,8 +28,7 @@ import com.google.android.gms.maps.model.LatLng
 import com.google.maps.android.compose.rememberCameraPositionState
 import com.google.android.gms.maps.model.CameraPosition
 
-import com.example.assign6_5.ui.theme.MapDemoTheme
-import com.google.android.gms.maps.CameraUpdateFactory
+import com.example.assign6_6.ui.theme.MapDemoTheme
 import com.google.maps.android.compose.MapProperties
 import com.google.maps.android.compose.MapType
 import com.google.maps.android.compose.MapUiSettings
@@ -44,6 +37,8 @@ import com.google.maps.android.compose.MarkerState
 import com.google.android.gms.location.*
 import android.location.Geocoder
 import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.ui.graphics.Color
+import com.google.maps.android.compose.Polyline
 
 class MainActivity : ComponentActivity() {
     private lateinit var fusedLocationClient: FusedLocationProviderClient
@@ -162,6 +157,44 @@ fun MainScreen(location: Location) {
     // Holds the human-readable address for current location
     var addressText by remember { mutableStateOf("Loading address...") }
 
+    val freedomTrail = listOf(
+        LatLng(42.35505, -71.06563), // 1. Boston Common (Start)
+        LatLng(42.35817, -71.06370), // 2. Massachusetts State House
+        LatLng(42.35694, -71.06216), // 3. Park Street Church
+        LatLng(42.35736, -71.06164), // 4. Granary Burying Ground
+        LatLng(42.35755, -71.06278), // 5. King's Chapel + Burying Ground
+        LatLng(42.35845, -71.06048), // 6. Benjamin Franklin Statue / First Public School
+        LatLng(42.35895, -71.05768), // 7. Old Corner Bookstore
+        LatLng(42.35898, -71.05684), // 8. Old South Meeting House
+        LatLng(42.35876, -71.05369), // 9. Old State House
+        LatLng(42.36000, -71.05509), // 10. Boston Massacre Site
+        LatLng(42.36098, -71.05479), // 11. Faneuil Hall
+        LatLng(42.36147, -71.05272), // 12. Paul Revere House
+        LatLng(42.36368, -71.05370), // 13. Old North Church
+        LatLng(42.36638, -71.05436), // 14. Copp's Hill Burying Ground
+        LatLng(42.37086, -71.06352), // 15. USS Constitution / Charlestown Navy Yard
+        LatLng(42.37630, -71.06167)  // 16. Bunker Hill Monument (End)
+    )
+
+    val freedomTrailNames: List<String> = listOf(
+        "Boston Common",
+        "Massachusetts State House",
+        "Park Street Church",
+        "Granary Burying Ground",
+        "King's Chapel & Burying Ground",
+        "First Public School / Benjamin Franklin Statue",
+        "Old Corner Bookstore",
+        "Old South Meeting House",
+        "Old State House",
+        "Boston Massacre Site",
+        "Faneuil Hall",
+        "Paul Revere House",
+        "Old North Church",
+        "Copp's Hill Burying Ground",
+        "USS Constitution",
+        "Bunker Hill Monument"
+    )
+
     // Reverse geocode user's current location
     LaunchedEffect(location) {
         val geocoder = Geocoder(context)
@@ -202,13 +235,19 @@ fun MainScreen(location: Location) {
         )
 
         // Draw all custom markers placed by user
-        customMarkers.forEach { latLng ->
+        freedomTrail.forEachIndexed { index, point ->
             Marker(
-                state = MarkerState(latLng),
-                title = "Custom Marker",
-                snippet = "${latLng.latitude}, ${latLng.longitude}"
+                state = MarkerState(point),
+                title = freedomTrailNames[index],
+                snippet = "Freedom Trail Stop ${index + 1}"
             )
         }
+
+        Polyline(
+            points = freedomTrail, // Pass the list of LatLng coordinates
+            color = Color.Blue, // Set the polyline color
+            width = 8f // Set the polyline width
+        )
     }
 }
 
